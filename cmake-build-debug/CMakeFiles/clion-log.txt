@@ -1,0 +1,20 @@
+/home/cos/bin/clion-2017.1/bin/cmake/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /home/cos/pmd-dvrk-nodocker/src/cisst-saw/sawRobotIO1394/components/code/Amp1394
+CMake Warning (dev) at lib/CMakeLists.txt:12 (project):
+  Policy CMP0048 is not set: project() command manages VERSION variables.
+  Run "cmake --help-policy CMP0048" for policy details.  Use the cmake_policy
+  command to set the policy and suppress this warning.
+
+  The following variable(s) would be set to empty:
+
+    Amp1394_VERSION
+    Amp1394_VERSION_MAJOR
+    Amp1394_VERSION_MINOR
+    Amp1394_VERSION_PATCH
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Error at CMakeLists.txt:112 (add_subdirectory):
+  add_subdirectory given source "tests" which is not an existing directory.
+
+
+-- Configuring incomplete, errors occurred!
+See also "/home/cos/pmd-dvrk-nodocker/src/cisst-saw/sawRobotIO1394/components/code/Amp1394/cmake-build-debug/CMakeFiles/CMakeOutput.log".

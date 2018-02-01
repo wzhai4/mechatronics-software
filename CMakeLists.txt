@@ -16,7 +16,7 @@ cmake_minimum_required (VERSION 2.6)
 # Set the version number
 set (Amp1394_VERSION_MAJOR "1")
 set (Amp1394_VERSION_MINOR "3")
-set (Amp1394_VERSION_PATCH "0")
+set (Amp1394_VERSION_PATCH "42")
 set (Amp1394_VERSION "${Amp1394_VERSION_MAJOR}.${Amp1394_VERSION_MINOR}.${Amp1394_VERSION_PATCH}")
 
 # If LIBRARY_OUTPUT_PATH is not defined, define it here (note that if this
@@ -45,7 +45,7 @@ else (WIN32)
 
   # On other platforms (mostly Linux), can build with pcap and/or libraw1394
   option (Amp1394_HAS_PCAP   "Build Amp1394 with Ethernet support (pcap)"       OFF)
-  option (Amp1394_HAS_RAW1394 "Build Amp1394 with FireWire support (libraw1394)" ON)
+  option (Amp1394_HAS_RAW1394 "Build Amp1394 with FireWire support (libraw1394)" OFF)
 
   # For now, assume pcap is installed somewhere standard
   set (PCAP_INCLUDE_DIR "")
@@ -53,9 +53,9 @@ else (WIN32)
 
 endif (WIN32)
 
-if (NOT Amp1394_HAS_RAW1394 AND NOT Amp1394_HAS_PCAP)
-  message (SEND_ERROR "Amp1394 requires at least one of Amp1394_HAS_RAW1394 or Amp1394_HAS_PCAP")
-endif (NOT Amp1394_HAS_RAW1394 AND NOT Amp1394_HAS_PCAP)
+#if (NOT Amp1394_HAS_RAW1394 AND NOT Amp1394_HAS_PCAP)
+#  message (SEND_ERROR "Amp1394 requires at least one of Amp1394_HAS_RAW1394 or Amp1394_HAS_PCAP")
+#endif (NOT Amp1394_HAS_RAW1394 AND NOT Amp1394_HAS_PCAP)
 
 # TODO: Determine whether it is necessary to have separate EXTRA variables for LIBRARY_DIR
 #       and LIBRARIES. Currently, it seems that both are always used together.
@@ -100,16 +100,10 @@ if (UNIX)
   endif ()
 endif (UNIX)
 
-# Utilities to test libraw1394
-if (Amp1394_HAS_RAW1394)
-  add_subdirectory (util)
-endif (Amp1394_HAS_RAW1394)
 
 # Code for library Amp1394
 add_subdirectory (lib)
 
-# Test programs (some use curses for text based display)
-add_subdirectory (tests)
 
 # Utility to flash/test board
-add_subdirectory (programmer)
+#add_subdirectory (programmer)

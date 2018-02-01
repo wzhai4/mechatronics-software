@@ -1,0 +1,1 @@
+/usr/bin/c++    -Wextra -Wall -fPIC -g   CMakeFiles/qlatest.dir/qlatest.cpp.o  -o qlatest  -L/home/cos/pmd-dvrk-nodocker/src/cisst-saw/sawRobotIO1394/components/code/Amp1394/cmake-build-debug/lib -Wl,-rpath,/home/cos/pmd-dvrk-nodocker/src/cisst-saw/sawRobotIO1394/components/code/Amp1394/cmake-build-debug/lib: -rdynamic ../lib/libAmp1394.a -lcurses -lform 

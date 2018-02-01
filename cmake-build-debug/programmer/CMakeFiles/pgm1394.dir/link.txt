@@ -1,0 +1,1 @@
+/usr/bin/c++    -Wextra -Wall -fPIC -g   CMakeFiles/pgm1394.dir/pgm1394.cpp.o CMakeFiles/pgm1394.dir/mcsFile.cpp.o  -o pgm1394  -L/home/cos/pmd-dvrk-nodocker/src/cisst-saw/sawRobotIO1394/components/code/Amp1394/cmake-build-debug/lib -Wl,-rpath,/home/cos/pmd-dvrk-nodocker/src/cisst-saw/sawRobotIO1394/components/code/Amp1394/cmake-build-debug/lib: -rdynamic ../lib/libAmp1394.a 
