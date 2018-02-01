@@ -46,6 +46,8 @@ public:
     AmpIO(AmpIO_UInt8 board_id, unsigned int numAxes = 4);
     ~AmpIO();
 
+    bool ValidRead() const;
+
     AmpIO_UInt32 GetFirmwareVersion(void) const;    
     // Return FPGA serial number (empty string if not found)
     std::string GetFPGASerialNumber(void);
@@ -448,6 +450,8 @@ protected:
         VEL_DP_DATA_OFFSET = 7,    // enc data register (velocity, DP/1 method)
         DOUT_CTRL_OFFSET = 8       // digital output control (PWM, one-shot)
     };
+
+
 };
 
 #endif // __AMPIO_H__
