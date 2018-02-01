@@ -203,18 +203,18 @@ AmpIO_UInt32 AmpIO::GetMotorCurrent(unsigned int index) const
     if (index >= NUM_CHANNELS)
         return 0L;
 
-    return 12345L;
+    return 0xffff/2;
 }
 
 AmpIO_UInt32 AmpIO::GetAnalogInput(unsigned int index) const
 {
-    return 123L;
+    return 0;
 }
 
 AmpIO_Int32 AmpIO::GetEncoderPosition(unsigned int index) const
 {
     if (index < NUM_CHANNELS) {
-        return 1234;
+        return index;
     }
     return 0;
 }
@@ -223,7 +223,7 @@ AmpIO_Int32 AmpIO::GetEncoderPosition(unsigned int index) const
 // For clarity and efficiency, this duplicates some code rather than calling GetEncoderVelocity.
 double AmpIO::GetEncoderVelocityCountsPerSecond(unsigned int index) const
 {
-    return 12345.0;
+    return 0;
 }
 
 // Returns encoder period; encoder velocity is 4/period.
@@ -292,7 +292,7 @@ bool AmpIO::GetAmpStatus(unsigned int index) const
 
 AmpIO_UInt32 AmpIO::GetSafetyAmpDisable(void) const
 {
-    return 0x0f;
+    return 0x00;
 }
 
 
