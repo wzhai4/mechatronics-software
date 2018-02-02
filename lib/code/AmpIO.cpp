@@ -191,7 +191,6 @@ AmpIO_UInt32 AmpIO::GetAnalogInput(unsigned int index) const {
 }
 
 AmpIO_Int32 AmpIO::GetEncoderPosition(unsigned int index) const {
-    std::cout << "GetEncoderPosition" << std::endl;
 
     if (index < NUM_CHANNELS) {
         return index;
@@ -202,20 +201,17 @@ AmpIO_Int32 AmpIO::GetEncoderPosition(unsigned int index) const {
 // Returns encoder velocity in counts/sec.
 // For clarity and efficiency, this duplicates some code rather than calling GetEncoderVelocity.
 double AmpIO::GetEncoderVelocityCountsPerSecond(unsigned int index) const {
-    std::cout << "GetEncoderVelocityCountsPerSecond" << std::endl;
 
     return 0;
 }
 
 // Returns encoder period; encoder velocity is 4/period.
 AmpIO_Int32 AmpIO::GetEncoderVelocity(unsigned int index) const {
-    std::cout << "GetEncoderVelocity" << std::endl;
 
     return 0L;
 }
 
 AmpIO_UInt32 AmpIO::GetEncoderVelocityRaw(unsigned int index) const {
-    std::cout << "GetEncoderVelocityRaw" << std::endl;
     return 0;
 }
 
@@ -246,7 +242,7 @@ bool AmpIO::GetSafetyRelayStatus(void) const {
 
 bool AmpIO::GetWatchdogTimeoutStatus(void) const {
     // Bit 23
-    return 1;
+    return 0;
 }
 
 bool AmpIO::GetAmpEnable(unsigned int index) const {
@@ -267,19 +263,16 @@ AmpIO_UInt32 AmpIO::GetSafetyAmpDisable(void) const {
  */
 
 void AmpIO::SetPowerEnable(bool state) {
-    std::cout << "Power Enable" << std::endl;
 }
 
 bool AmpIO::SetAmpEnable(unsigned int index, bool state) {
     if (index < NUM_CHANNELS) {
-        std::cout << "Amp Enable" << std::endl;
         return true;
     }
     return false;
 }
 
 void AmpIO::SetSafetyRelay(bool state) {
-    std::cout << "Relay" << std::endl;
 }
 
 bool AmpIO::SetMotorCurrent(unsigned int index, AmpIO_UInt32 sdata) {
@@ -288,7 +281,6 @@ bool AmpIO::SetMotorCurrent(unsigned int index, AmpIO_UInt32 sdata) {
 
     if (index < NUM_CHANNELS) {
 //        WriteBufferData[index+WB_CURR_OFFSET] = bswap_32(data);
-        std::cout << "Motor Current" << std::endl;
         return true;
     } else
         return false;
@@ -317,12 +309,10 @@ AmpIO_UInt32 AmpIO::ReadSafetyAmpDisable(void) const {
 
 bool AmpIO::ReadEncoderPreload(unsigned int index, AmpIO_Int32 &sdata) const {
     sdata = 0;
-    std::cout << "ReadEncoderPreload" << std::endl;
     return false;
 }
 
 bool AmpIO::ReadDoutControl(unsigned int index, AmpIO_UInt16 &countsHigh, AmpIO_UInt16 &countsLow) {
-    std::cout << "ReadDoutControl" << std::endl;
 
     return true;
 }
