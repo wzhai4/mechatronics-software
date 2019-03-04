@@ -29,7 +29,10 @@ else (WIN32)
     add_executable(qlatest qlatest.cpp)
     target_link_libraries(qlatest ${Amp1394_LIBRARIES} ${Amp1394_EXTRA_LIBRARIES} ${CURSES_LIBRARIES})
 
-    install (TARGETS qladisp qlatest
+    add_executable(dvrktest dvrktest.cpp)
+    target_link_libraries(dvrktest ${Amp1394_LIBRARIES} ${Amp1394_EXTRA_LIBRARIES})
+
+    install (TARGETS qladisp qlatest dvrktest
              COMPONENT Amp1394-utils
              RUNTIME DESTINATION bin)
 
