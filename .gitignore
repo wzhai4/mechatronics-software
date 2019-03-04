@@ -5,3 +5,4 @@ CMakeLists.txt.user
 .idea
 cmake-build-*
 .swp
+build

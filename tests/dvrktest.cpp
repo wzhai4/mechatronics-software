@@ -33,8 +33,8 @@
 
 #include "AmpIO.h"
 
-const unsigned long POT_TEST_ADC_COUNT[2] = {0x1000, 0x2000};
-const unsigned long POT_TEST_ADC_ERROR_TOLERANCE = 100;
+const unsigned long POT_TEST_ADC_COUNT[2] = {0x4000, 0x8000};
+const unsigned long POT_TEST_ADC_ERROR_TOLERANCE = 0x500;
 
 
 bool TestAnalogInputs(AmpIO **Board, BasePort *Port, std::ofstream &logFile) {
@@ -44,10 +44,10 @@ bool TestAnalogInputs(AmpIO **Board, BasePort *Port, std::ofstream &logFile) {
                 unsigned long reading = Board[board_index]->GetAnalogInput(channel_index);
                 std::cout << "board " << board_index << " channel " << channel_index << " - " << " expected "
                           << POT_TEST_ADC_COUNT[board_index] << " measured " << reading;
-                if (std::labs((long) reading - (long) POT_TEST_ADC_COUNT[board_index]) > POT_TEST_ADC_ERROR_TOLERANCE) {
+                if (std::abs((long) reading - (long) POT_TEST_ADC_COUNT[board_index]) > POT_TEST_ADC_ERROR_TOLERANCE) {
                     std::cout << " ... [FAIL]" << std::endl;
                     // check for swapped cable
-                    if (std::labs((long) reading - (long) POT_TEST_ADC_COUNT[~board_index]) <
+                    if (std::abs((long) reading - (long) POT_TEST_ADC_COUNT[~board_index]) <
                         POT_TEST_ADC_ERROR_TOLERANCE) {
                         std::cout << "is the 68-pin cable swapped?" << std::endl;
                     }
@@ -88,9 +88,11 @@ int main(int argc, char **argv) {
     int board1 = BoardIO::MAX_BOARDS;
     int board2 = BoardIO::MAX_BOARDS;
     bool requireQLA_SN = true;
-
     int args_found = 0;
     for (i = 1; i < (unsigned int) argc; i++) {
+	if ((argv[i][0] == '-') && (argv[i][1] == 'k')) {
+	    requireQLA_SN = false;
+	} else 
         if ((argv[i][0] == '-') && (argv[i][1] == 'p')) {
             // -p option can be -pN, -pfwN, or -pethN, where N
             // is the port number. -pN is equivalent to -pfwN
@@ -151,11 +153,8 @@ int main(int argc, char **argv) {
     std::vector<AmpIO_UInt32> FirmwareVersionList;
     BoardList.push_back(new AmpIO(board1));
     Port->AddBoard(BoardList[0]);
-    if (board2 < BoardIO::MAX_BOARDS) {
-        BoardList.push_back(new AmpIO(board2));
-        Port->AddBoard(BoardList[1]);
-    }
-
+    BoardList.push_back(new AmpIO(board2));
+    Port->AddBoard(BoardList[1]);
     FirmwareVersionList.clear();
     for (j = 0; j < BoardList.size(); j++) {
         FirmwareVersionList.push_back(BoardList[j]->GetFirmwareVersion());
@@ -171,6 +170,7 @@ int main(int argc, char **argv) {
 
     for (j = 0; j < BoardList.size(); j++) {
         std::string QLA_SN = BoardList[j]->GetQLASerialNumber();
+std::cout << QLA_SN <<std::endl;
         if (QLA_SN.empty()) {
             if (requireQLA_SN) {
                 std::cerr << "Failed to get QLA serial number (specify -k command line option to continue test)"
