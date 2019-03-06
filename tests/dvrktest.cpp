@@ -13,12 +13,14 @@
  *
  ******************************************************************************/
 
-#include <stdlib.h>
-#include <unistd.h>
+//#include <stdlib.h>
+//#include <unistd.h>
 #include <cmath>
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <chrono>
+#include <thread>
 
 #include <Amp1394/AmpIORevision.h>
 
@@ -33,42 +35,176 @@
 
 #include "AmpIO.h"
 
+enum Result {
+    pass, fail, fatal_fail
+};
+
 const unsigned long POT_TEST_ADC_COUNT[2] = {0x4000, 0x8000};
 const unsigned long POT_TEST_ADC_ERROR_TOLERANCE = 0x500;
 
+const unsigned long DIGITAL_IN_TEST_HIGH_STATE[2] = {0x0fff, 0x0fff};
+const unsigned int DIGITAL_IN_TEST_MASK[2] = {0x0fff, 0x0fff};
+const unsigned long DIGITAL_IN_TEST_WAIT_TIME_MS = 100;
+const unsigned long ENCODER_TEST_WAIT_TIME_MS = 1000;
 
-bool TestAnalogInputs(AmpIO **Board, BasePort *Port, std::ofstream &logFile) {
+const unsigned long ENCODER_TEST_INCREMENT = 10;
+const unsigned long ENCODER_TEST_INCREMENT_TOLERANCE = 2;
+
+const auto PASS = " ... [PASS]";
+const auto FAIL = " ... [FAIL]";
+
+Result TestAnalogInputs(AmpIO **Board, BasePort *Port) {
+    Result result = pass;
     if (Port->ReadAllBoards()) {
         for (int board_index = 0; board_index < 2; board_index++) {
             for (int channel_index = 0; channel_index < 4; channel_index++) {
                 unsigned long reading = Board[board_index]->GetAnalogInput(channel_index);
-                std::cout << "board " << board_index << " channel " << channel_index << " - " << " expected "
-                          << POT_TEST_ADC_COUNT[board_index] << " measured " << reading;
+                std::cout << std::hex << "board " << board_index << " pot channel " << channel_index << " - "
+                          << " expected="
+                          << POT_TEST_ADC_COUNT[board_index] << " measured=" << reading;
                 if (std::abs((long) reading - (long) POT_TEST_ADC_COUNT[board_index]) > POT_TEST_ADC_ERROR_TOLERANCE) {
-                    std::cout << " ... [FAIL]" << std::endl;
+                    std::cout << FAIL << std::endl;
+                    result = fail;
                     // check for swapped cable
                     if (std::abs((long) reading - (long) POT_TEST_ADC_COUNT[~board_index]) <
                         POT_TEST_ADC_ERROR_TOLERANCE) {
-                        std::cout << "is the 68-pin cable swapped?" << std::endl;
+                        std::cout << "(Looks like the 68-pin cable is crossed!)" << std::endl;
+                        result = fatal_fail;
                     }
-                    return false;
+
                 } else {
-                    std::cout << " ... [PASS]" << std::endl;
+                    std::cout << PASS << std::endl;
                 }
             }
         }
     }
-    return true;
+    return result;
 }
 
-//bool TestDigitalInputs(AmpIO *Board, BasePort *Port, std::ofstream &logFile) {
-//    if (Port->ReadAllBoards()) {
-//        for (int board_index = 0; board_index < 2; board_index++) {
-////            digital_in = Board[board_index].
-//        }
-//    }
-//    return true;
-//}
+Result TestDigitalInputs(AmpIO **Board, BasePort *Port) {
+    Result result = pass;
+    unsigned long before[2];
+    unsigned long after[2];
+    if (Port->ReadAllBoards()) {
+        for (int board_index = 0; board_index < 2; board_index++) {
+            before[board_index] = Board[board_index]->GetDigitalInput() & DIGITAL_IN_TEST_MASK[board_index];
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(DIGITAL_IN_TEST_WAIT_TIME_MS));
+        if (Port->ReadAllBoards()) {
+            for (int board_index = 0; board_index < 2; board_index++) {
+                after[board_index] = Board[board_index]->GetDigitalInput() & DIGITAL_IN_TEST_MASK[board_index];
+            }
+        }
+    }
+
+    for (int board_index = 0; board_index < 2; board_index++) {
+        std::cout << "board " << board_index << " din - expected=" << DIGITAL_IN_TEST_HIGH_STATE[board_index]
+                  << " before=" << before[board_index] << " after=" << after[board_index];
+        if (((before[board_index] == 0) && (after[board_index] == DIGITAL_IN_TEST_HIGH_STATE[board_index])) ||
+            ((before[board_index] == DIGITAL_IN_TEST_HIGH_STATE[board_index]) && (after[board_index] == 0))) {
+            std::cout << PASS << std::endl;
+        } else {
+            result = fail;
+            std::cout << FAIL << std::endl;
+        }
+    }
+
+    return result;
+
+}
+
+Result TestEncoders(AmpIO **Board, BasePort *Port) {
+    Result result = pass;
+
+    int64_t encoder_count_before[8];
+    int64_t encoder_count_after[8];
+
+    if (Port->ReadAllBoards()) {
+        for (int board_index = 0; board_index < 2; board_index++) {
+            for (int channel_index = 0; channel_index < 4; channel_index++) {
+                encoder_count_before[board_index * 4 + channel_index] = Board[board_index]->GetEncoderPosition(
+                        channel_index);
+            }
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(ENCODER_TEST_WAIT_TIME_MS));
+
+        if (Port->ReadAllBoards()) {
+            for (int board_index = 0; board_index < 2; board_index++) {
+                for (int channel_index = 0; channel_index < 4; channel_index++) {
+                    encoder_count_after[board_index * 4 + channel_index] = Board[board_index]->GetEncoderPosition(
+                            channel_index);
+                }
+            }
+        }
+    }
+
+    for (int i = 0; i < 7; i++) {
+        auto increment = encoder_count_after[i] - encoder_count_before[i];
+
+        std::cout << "encoder " << i << " increment - expected=10 measured=" << increment;
+        if (std::fabs(increment - ENCODER_TEST_INCREMENT) < ENCODER_TEST_INCREMENT_TOLERANCE) {
+            std::cout << PASS << std::endl;
+        } else {
+            std::cout << FAIL << std::endl;
+            result = fail;
+        }
+    }
+
+
+    return result;
+}
+
+Result TestMotorPowerControl(AmpIO **Board, BasePort *Port) {
+    Result result = pass;
+    int mv_good_fail_count = 0;
+
+    for (int board_index = 0; board_index < 2; board_index++) {
+        Board[board_index]->WriteSafetyRelay(true);
+        Board[board_index]->WritePowerEnable(true);
+        Board[board_index]->WriteAmpEnable(0x0f, 0x0f);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    Port->ReadAllBoards();
+
+    for (int board_index = 0; board_index < 2; board_index++) {
+        auto status = Board[board_index]->GetStatus();
+        auto safety_relay_status = Board[board_index]->GetSafetyRelayStatus();
+        std::cout << "board " << board_index << " power - status=" << status << " safety_relay="
+                  << safety_relay_status;
+
+        if (!safety_relay_status) {
+            result = fatal_fail;
+            std::cout << FAIL << std::endl;
+        } else if ((status & 0x000cffff) == 0x000c0000) {
+            std::cout << " mv_good=ok";
+            if ((status & 0x000cffff) == (0x000c0f0f & 0x000cffff)) {
+                std::cout << " amp_power=ok";
+                std::cout << PASS << std::endl;
+
+            } else {
+                std::cout << " amp_power=bad";
+                result = fatal_fail;
+                std::cout << FAIL << std::endl;
+            }
+        } else {
+            std::cout << " mv_good=bad";
+            mv_good_fail_count++;
+            result = fatal_fail;
+            std::cout << FAIL << std::endl;
+        }
+
+    }
+
+    if (mv_good_fail_count == 2) {
+        // When both boards don't have mv_good
+        std::cout << "(None of the board has motor power. Is the safety chain open?)" << std::endl;
+    }
+
+    return result;
+
+
+}
 
 
 void PrintDebugStream(std::stringstream &debugStream) {
@@ -90,10 +226,9 @@ int main(int argc, char **argv) {
     bool requireQLA_SN = true;
     int args_found = 0;
     for (i = 1; i < (unsigned int) argc; i++) {
-	if ((argv[i][0] == '-') && (argv[i][1] == 'k')) {
-	    requireQLA_SN = false;
-	} else 
-        if ((argv[i][0] == '-') && (argv[i][1] == 'p')) {
+        if ((argv[i][0] == '-') && (argv[i][1] == 'k')) {
+            requireQLA_SN = false;
+        } else if ((argv[i][0] == '-') && (argv[i][1] == 'p')) {
             // -p option can be -pN, -pfwN, or -pethN, where N
             // is the port number. -pN is equivalent to -pfwN
             // for backward compatibility.
@@ -170,7 +305,7 @@ int main(int argc, char **argv) {
 
     for (j = 0; j < BoardList.size(); j++) {
         std::string QLA_SN = BoardList[j]->GetQLASerialNumber();
-std::cout << QLA_SN <<std::endl;
+        std::cout << QLA_SN << std::endl;
         if (QLA_SN.empty()) {
             if (requireQLA_SN) {
                 std::cerr << "Failed to get QLA serial number (specify -k command line option to continue test)"
@@ -207,7 +342,10 @@ std::cout << QLA_SN <<std::endl;
         std::cout << "FPGA Firmware Version: " << FPGA_VER << std::endl;
     }
 
-    TestAnalogInputs(&BoardList[0], Port, logFile);
+    TestAnalogInputs(&BoardList[0], Port);
+    TestEncoders(&BoardList[0], Port);
+    TestDigitalInputs(&BoardList[0], Port);
+    TestMotorPowerControl(&BoardList[0], Port);
 
 
     for (j = 0; j < BoardList.size(); j++) {
