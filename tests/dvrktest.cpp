@@ -370,13 +370,16 @@ int main(int argc, char **argv) {
         std::cout << "FPGA Firmware Version: " << FPGA_VER << std::endl;
     }
 
-    TestAnalogInputs(&BoardList[0], Port);
-    TestEncoders(&BoardList[0], Port);
-//    TestDigitalInputs(&BoardList[0], Port);
-    TestMotorPowerControl(&BoardList[0], Port);
-    TestPowerAmplifier(&BoardList[0], Port);
+    std::vector<Result (*)(AmpIO **, BasePort *)> test_functions;
+    test_functions.push_back(TestAnalogInputs);
+    test_functions.push_back(TestEncoders);
+    test_functions.push_back(TestMotorPowerControl);
+    test_functions.push_back(TestPowerAmplifier);
 
-
+    for (auto test_function : test_functions) {
+        auto result = test_function(&BoardList[0], Port);
+        if (result == fatal_fail) break;
+    }
 
     for (j = 0; j < BoardList.size(); j++) {
         Port->RemoveBoard(BoardList[j]);
