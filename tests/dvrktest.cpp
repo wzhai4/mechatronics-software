@@ -151,7 +151,7 @@ Result TestEncoders(AmpIO **Board, BasePort *Port) {
         auto increment = encoder_count_after[i] - encoder_count_before[i];
 
         std::cout << std::dec << "encoder " << i << " increment - expected=10 measured=" << increment;
-        if (std::fabs(increment - ENCODER_TEST_INCREMENT) < ENCODER_TEST_INCREMENT_TOLERANCE) {
+        if (std::fabs((long)increment - (long)ENCODER_TEST_INCREMENT) < ENCODER_TEST_INCREMENT_TOLERANCE) {
             std::cout << PASS << std::endl;
         } else {
             std::cout << FAIL << std::endl;
@@ -164,12 +164,16 @@ Result TestEncoders(AmpIO **Board, BasePort *Port) {
 }
 
 Result TestMotorPowerControl(AmpIO **Board, BasePort *Port) {
+
     Result result = pass;
     int mv_good_fail_count = 0;
 
     for (int board_index = 0; board_index < 2; board_index++) {
         Board[board_index]->WriteSafetyRelay(true);
+        Board[board_index]->WriteWatchdogPeriod(0x0000);
         Board[board_index]->WritePowerEnable(true);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
         Board[board_index]->WriteAmpEnable(0x0f, 0x0f);
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -182,7 +186,7 @@ Result TestMotorPowerControl(AmpIO **Board, BasePort *Port) {
                   << safety_relay_status;
 
         if (safety_relay_status) {
-            if ((status & 0x000cffff) == 0x000c0000) {
+            if ((status & 0x000c0000) == 0x000c0000) {
                 std::cout << " mv_good=ok";
                 if ((status & 0x000cffff) == 0x000c0f0f) {
                     std::cout << " amp_power=ok";
@@ -225,7 +229,7 @@ Result TestPowerAmplifier(AmpIO **Board, BasePort *Port) {
 
             Port->ReadAllBoards();
 
-            if (std::fabs(Board[0]->GetAnalogInput(0) - POT_TEST_ADC_COUNT[0] / 2) < POT_TEST_ADC_ERROR_TOLERANCE) {
+            if (std::fabs((long)Board[0]->GetAnalogInput(0) - (long)POT_TEST_ADC_COUNT[0] / 2) < POT_TEST_ADC_ERROR_TOLERANCE) {
                 std::cout << COLOR_ERROR << "(unexpected current detected on channel 0)" << COLOR_OFF << std::endl;
                 return fatal_fail;
             }
@@ -236,10 +240,10 @@ Result TestPowerAmplifier(AmpIO **Board, BasePort *Port) {
 
             Port->ReadAllBoards();
             auto motor_current = Board[board_index]->GetMotorCurrent(channel_index);
-            bool amp_working = std::fabs(motor_current - POWER_AMP_TEST_DAC) <
+            bool amp_working = std::fabs((long)motor_current - (long)POWER_AMP_TEST_DAC) <
                                POWER_AMP_TEST_TOLERANCE;
             bool channel_0_load_driven =
-                    std::fabs(Board[0]->GetAnalogInput(0) - POT_TEST_ADC_COUNT[0] / 2) < POT_TEST_ADC_ERROR_TOLERANCE;
+                    std::fabs((long)Board[0]->GetAnalogInput(0) - (long)POT_TEST_ADC_COUNT[0] / 2) < POT_TEST_ADC_ERROR_TOLERANCE;
 
             if (board_index == 0 && channel_index == 0 && amp_working && !channel_0_load_driven) {
                 crossed_db9_error_count++;
@@ -262,6 +266,8 @@ Result TestPowerAmplifier(AmpIO **Board, BasePort *Port) {
 
             Board[board_index]->SetMotorCurrent(channel_index, 0x8000);
             Port->WriteAllBoards();
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
 
         }
     }
@@ -381,7 +387,10 @@ int main(int argc, char **argv) {
         if (result == fatal_fail) break;
     }
 
+
     for (j = 0; j < BoardList.size(); j++) {
+        BoardList[j]->WritePowerEnable(false);
+        BoardList[j]->WriteSafetyRelay(false);
         Port->RemoveBoard(BoardList[j]);
     }
 
