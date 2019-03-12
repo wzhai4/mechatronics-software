@@ -58,6 +58,8 @@ const auto FAIL = " ... \033[1;91m[FAIL]\033[0m";
 
 const std::string COLOR_OFF = "\033[0m";
 const std::string COLOR_ERROR = "\033[0;91m";
+const std::string COLOR_GOOD = "\033[0;32m";
+
 
 Result TestAnalogInputs(AmpIO **Board, BasePort *Port) {
     Result result = pass;
@@ -147,18 +149,26 @@ Result TestEncoders(AmpIO **Board, BasePort *Port) {
         }
     }
 
+    uint8_t each_encoder_result = 0;
+
     for (int i = 0; i < 7; i++) {
         auto increment = encoder_count_after[i] - encoder_count_before[i];
 
         std::cout << std::dec << "encoder " << i << " increment - expected=10 measured=" << increment;
-        if (std::fabs((long)increment - (long)ENCODER_TEST_INCREMENT) < ENCODER_TEST_INCREMENT_TOLERANCE) {
+        if (std::fabs((long) increment - (long) ENCODER_TEST_INCREMENT) < ENCODER_TEST_INCREMENT_TOLERANCE) {
             std::cout << PASS << std::endl;
+            each_encoder_result |= 1 << i;
         } else {
             std::cout << FAIL << std::endl;
             result = fail;
         }
     }
 
+    if (each_encoder_result == 0b0001111 || each_encoder_result == 0b1110000 || each_encoder_result == 0) {
+        std::cout << COLOR_ERROR << "(Check SCSI (68-pin) cables!)" << COLOR_OFF <<
+                  std::endl;
+        result = fatal_fail;
+    }
 
     return result;
 }
@@ -172,8 +182,6 @@ Result TestMotorPowerControl(AmpIO **Board, BasePort *Port) {
         Board[board_index]->WriteSafetyRelay(true);
         Board[board_index]->WriteWatchdogPeriod(0x0000);
         Board[board_index]->WritePowerEnable(true);
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
         Board[board_index]->WriteAmpEnable(0x0f, 0x0f);
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -229,21 +237,23 @@ Result TestPowerAmplifier(AmpIO **Board, BasePort *Port) {
 
             Port->ReadAllBoards();
 
-            if (std::fabs((long)Board[0]->GetAnalogInput(0) - (long)POT_TEST_ADC_COUNT[0] / 2) < POT_TEST_ADC_ERROR_TOLERANCE) {
+            if (std::fabs((long) Board[0]->GetAnalogInput(0) - (long) POT_TEST_ADC_COUNT[0] / 2) <
+                POT_TEST_ADC_ERROR_TOLERANCE) {
                 std::cout << COLOR_ERROR << "(unexpected current detected on channel 0)" << COLOR_OFF << std::endl;
                 return fatal_fail;
             }
 
             Board[board_index]->SetMotorCurrent(channel_index, POWER_AMP_TEST_DAC);
             Port->WriteAllBoards();
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
             Port->ReadAllBoards();
             auto motor_current = Board[board_index]->GetMotorCurrent(channel_index);
-            bool amp_working = std::fabs((long)motor_current - (long)POWER_AMP_TEST_DAC) <
+            bool amp_working = std::fabs((long) motor_current - (long) POWER_AMP_TEST_DAC) <
                                POWER_AMP_TEST_TOLERANCE;
             bool channel_0_load_driven =
-                    std::fabs((long)Board[0]->GetAnalogInput(0) - (long)POT_TEST_ADC_COUNT[0] / 2) < POT_TEST_ADC_ERROR_TOLERANCE;
+                    std::fabs((long) Board[0]->GetAnalogInput(0) - (long) POT_TEST_ADC_COUNT[0] / 2) <
+                    POT_TEST_ADC_ERROR_TOLERANCE;
 
             if (board_index == 0 && channel_index == 0 && amp_working && !channel_0_load_driven) {
                 crossed_db9_error_count++;
@@ -266,7 +276,7 @@ Result TestPowerAmplifier(AmpIO **Board, BasePort *Port) {
 
             Board[board_index]->SetMotorCurrent(channel_index, 0x8000);
             Port->WriteAllBoards();
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
 
         }
@@ -274,7 +284,10 @@ Result TestPowerAmplifier(AmpIO **Board, BasePort *Port) {
     if (crossed_db9_error_count == 2) {
         result = fatal_fail;
         std::cout << COLOR_ERROR << "(DB9 cables are likely crossed!)" << COLOR_OFF << std::endl;
+    }
 
+    if (result == fail) {
+        std::cout << COLOR_ERROR << "(Are the DB9 cables plugged in?)" << COLOR_OFF << std::endl;
     }
 
     return result;
@@ -293,8 +306,7 @@ int main(int argc, char **argv) {
     int board2 = BoardIO::MAX_BOARDS;
     int args_found = 0;
     for (i = 1; i < (unsigned int) argc; i++) {
-        if ((argv[i][0] == '-') && (argv[i][1] == 'k')) {
-        } else if ((argv[i][0] == '-') && (argv[i][1] == 'p')) {
+        if ((argv[i][0] == '-') && (argv[i][1] == 'p')) {
             // -p option can be -pN, -pfwN, or -pethN, where N
             // is the port number. -pN is equivalent to -pfwN
             // for backward compatibility.
@@ -312,10 +324,8 @@ int main(int argc, char **argv) {
         } else {
             if (args_found == 0) {
                 board1 = atoi(argv[i]);
-                std::cerr << "Selecting board " << board1 << std::endl;
             } else if (args_found == 1) {
                 board2 = atoi(argv[i]);
-                std::cerr << "Selecting board " << board2 << std::endl;
             }
             args_found++;
         }
@@ -328,7 +338,7 @@ int main(int argc, char **argv) {
         Port = new FirewirePort(port, debugStream);
         if (!Port->IsOK()) {
             std::cerr << "Failed to initialize firewire port " << port << std::endl;
-            return -1;
+            return -2;
         }
 #else
         std::cerr << "FireWire not available (set Amp1394_HAS_RAW1394 in CMake)" << std::endl;
@@ -345,7 +355,7 @@ int main(int argc, char **argv) {
         Port->SetProtocol(BasePort::PROTOCOL_SEQ_RW);  // PK TEMP
 #else
         std::cerr << "Ethernet not available (set Amp1394_HAS_PCAP in CMake)" << std::endl;
-        return -1;
+        return -2;
 #endif
     }
 
@@ -365,9 +375,10 @@ int main(int argc, char **argv) {
             BoardList[j]->WriteEncoderPreload(i, 0x1000 * i + 0x1000);
     }
 
-    std::cout << "Boards: " << board1 << " " << board2 << std::endl;
+    std::cout << "Board ID selected: Board 0=" << board1 << " Board 1=" << board2 << std::endl;
 
     for (j = 0; j < BoardList.size(); j++) {
+        std::cout << "Board: " << j << ". ";
         std::string QLA_SN = BoardList[j]->GetQLASerialNumber();
         std::cout << "QLA S/N: " << QLA_SN << ". ";
         std::string FPGA_SN = BoardList[j]->GetFPGASerialNumber();
@@ -376,15 +387,29 @@ int main(int argc, char **argv) {
         std::cout << "FPGA Firmware Version: " << FPGA_VER << std::endl;
     }
 
+    bool pass = true;
+
     std::vector<Result (*)(AmpIO **, BasePort *)> test_functions;
-    test_functions.push_back(TestAnalogInputs);
     test_functions.push_back(TestEncoders);
+    test_functions.push_back(TestAnalogInputs);
     test_functions.push_back(TestMotorPowerControl);
     test_functions.push_back(TestPowerAmplifier);
 
     for (auto test_function : test_functions) {
         auto result = test_function(&BoardList[0], Port);
-        if (result == fatal_fail) break;
+        std::cout << std::endl;
+        if (result == fatal_fail) {
+            pass = false;
+            break;
+        } else if (result == fail) {
+            pass = false;
+        }
+    }
+
+    if (pass) {
+        std::cout << COLOR_GOOD << "PASS" << COLOR_OFF << std::endl;
+    } else {
+        std::cout << COLOR_ERROR << "FAIL " << COLOR_OFF << std::endl;
     }
 
 
@@ -393,5 +418,7 @@ int main(int argc, char **argv) {
         BoardList[j]->WriteSafetyRelay(false);
         Port->RemoveBoard(BoardList[j]);
     }
+
+    return pass ? 0 : -1;
 
 }
