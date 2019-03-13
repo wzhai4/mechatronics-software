@@ -42,11 +42,11 @@ enum Result {
 const unsigned long POT_TEST_ADC_COUNT[2] = {0x4000, 0x8000};
 const unsigned long POT_TEST_ADC_ERROR_TOLERANCE = 0x500;
 
-const unsigned long DIGITAL_IN_TEST_HIGH_STATE[2] = {0x0fff, 0x0fff};
-const unsigned int DIGITAL_IN_TEST_MASK[2] = {0x0fff, 0x0fff};
-const unsigned long DIGITAL_IN_TEST_WAIT_TIME_MS = 200;
-const unsigned long ENCODER_TEST_WAIT_TIME_MS = 2000;
+std::array<uint8_t, 3> DIGITAL_IN_TEST_LOW_STATE{0x08, 0x03, 0x07};
+std::array<uint8_t, 3> DIGITAL_IN_TEST_HIGH_STATE{0x0f, 0x0f, 0x0f};
+const unsigned long DIGITAL_IN_TEST_WAIT_TIME_MS = 400;
 
+const unsigned long ENCODER_TEST_WAIT_TIME_MS = 2000;
 const unsigned long ENCODER_TEST_INCREMENT = 10;
 const unsigned long ENCODER_TEST_INCREMENT_TOLERANCE = 1;
 
@@ -59,6 +59,26 @@ const auto FAIL = " ... \033[1;91m[FAIL]\033[0m";
 const std::string COLOR_OFF = "\033[0m";
 const std::string COLOR_ERROR = "\033[0;91m";
 const std::string COLOR_GOOD = "\033[0;32m";
+
+Result TestSerialNumberAndVersion(AmpIO **Board, BasePort *Port) {
+    Result result = pass;
+    if (Port->ReadAllBoards()) {
+        for (int board_index = 0; board_index < 2; board_index++) {
+            std::cout << "board " << board_index << " - ";
+            std::string QLA_SN = Board[board_index]->GetQLASerialNumber();
+            std::cout << "QLA_sn=" << QLA_SN << " ";
+            std::string FPGA_SN = Board[board_index]->GetFPGASerialNumber();
+            std::cout << "FPGA_sn=" << FPGA_SN << " ";
+            uint32_t FPGA_VER = Board[board_index]->GetFirmwareVersion();
+            std::cout << "FPGA_ver=" << FPGA_VER << std::endl;
+        }
+    } else {
+        std::cout << COLOR_ERROR << "(Can't talk to Firewire. Check the Firewire cables!)" << COLOR_OFF
+                  << std::endl;
+        result = fatal_fail;
+    }
+    return result;
+}
 
 
 Result TestAnalogInputs(AmpIO **Board, BasePort *Port) {
@@ -92,31 +112,33 @@ Result TestAnalogInputs(AmpIO **Board, BasePort *Port) {
 
 Result TestDigitalInputs(AmpIO **Board, BasePort *Port) {
     Result result = pass;
-    unsigned long before[2];
-    unsigned long after[2];
-    if (Port->ReadAllBoards()) {
-        for (int board_index = 0; board_index < 2; board_index++) {
-            before[board_index] = Board[board_index]->GetDigitalInput() & DIGITAL_IN_TEST_MASK[board_index];
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(DIGITAL_IN_TEST_WAIT_TIME_MS));
-        if (Port->ReadAllBoards()) {
-            for (int board_index = 0; board_index < 2; board_index++) {
-                after[board_index] = Board[board_index]->GetDigitalInput() & DIGITAL_IN_TEST_MASK[board_index];
-            }
-        }
+    std::array<uint8_t, 3> before;
+    std::array<uint8_t, 3> after;
+    Port->ReadAllBoards();
+    before[0] = Board[0]->GetHomeSwitches();
+    before[1] = Board[1]->GetNegativeLimitSwitches();
+    before[2] = Board[1]->GetPositiveLimitSwitches();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(DIGITAL_IN_TEST_WAIT_TIME_MS));
+    Port->ReadAllBoards();
+    after[0] = Board[0]->GetHomeSwitches();
+    after[1] = Board[1]->GetNegativeLimitSwitches();
+    after[2] = Board[1]->GetPositiveLimitSwitches();
+
+    std::cout << "digital inputs - ";
+
+    for (int i = 0; i < 3; i++) {
+        std::cout << std::hex << (int) before[i] << "->" << (int) after[i] << " ";
     }
 
-    for (int board_index = 0; board_index < 2; board_index++) {
-        std::cout << std::hex << "board " << board_index << " din - expected="
-                  << DIGITAL_IN_TEST_HIGH_STATE[board_index]
-                  << " before=" << before[board_index] << " after=" << after[board_index];
-        if (((before[board_index] == 0) && (after[board_index] == DIGITAL_IN_TEST_HIGH_STATE[board_index])) ||
-            ((before[board_index] == DIGITAL_IN_TEST_HIGH_STATE[board_index]) && (after[board_index] == 0))) {
-            std::cout << PASS << std::endl;
-        } else {
-            result = fail;
-            std::cout << FAIL << std::endl;
-        }
+    if ((before == DIGITAL_IN_TEST_HIGH_STATE && after == DIGITAL_IN_TEST_LOW_STATE) ||
+        (before == DIGITAL_IN_TEST_LOW_STATE && after == DIGITAL_IN_TEST_HIGH_STATE)) {
+        std::cout << PASS << std::endl;
+    } else {
+        result = fail;
+        std::cout << FAIL << std::endl;
+        std::cout << COLOR_ERROR << "(False-positive failure possible. Re-run the test to make sure.)" << COLOR_OFF
+                  << std::endl;
     }
 
     return result;
@@ -295,7 +317,6 @@ Result TestPowerAmplifier(AmpIO **Board, BasePort *Port) {
 }
 
 int main(int argc, char **argv) {
-    unsigned int i, j;
 #if Amp1394_HAS_RAW1394
     bool useFireWire = true;
 #else
@@ -305,7 +326,7 @@ int main(int argc, char **argv) {
     int board1 = BoardIO::MAX_BOARDS;
     int board2 = BoardIO::MAX_BOARDS;
     int args_found = 0;
-    for (i = 1; i < (unsigned int) argc; i++) {
+    for (int i = 1; i < argc; i++) {
         if ((argv[i][0] == '-') && (argv[i][1] == 'p')) {
             // -p option can be -pN, -pfwN, or -pethN, where N
             // is the port number. -pN is equivalent to -pfwN
@@ -360,38 +381,26 @@ int main(int argc, char **argv) {
     }
 
     std::vector<AmpIO *> BoardList;
-    std::vector<AmpIO_UInt32> FirmwareVersionList;
     BoardList.push_back(new AmpIO(board1));
     Port->AddBoard(BoardList[0]);
     BoardList.push_back(new AmpIO(board2));
     Port->AddBoard(BoardList[1]);
-    FirmwareVersionList.clear();
-    for (j = 0; j < BoardList.size(); j++) {
-        FirmwareVersionList.push_back(BoardList[j]->GetFirmwareVersion());
-    }
 
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < BoardList.size(); j++)
-            BoardList[j]->WriteEncoderPreload(i, 0x1000 * i + 0x1000);
+    for (int i = 0; i < 4; i++) {
+        for (auto &j : BoardList)
+            j->WriteEncoderPreload(i, 0x1000 * i + 0x1000);
     }
 
     std::cout << "Board ID selected: Board 0=" << board1 << " Board 1=" << board2 << std::endl;
 
-    for (j = 0; j < BoardList.size(); j++) {
-        std::cout << "Board: " << j << ". ";
-        std::string QLA_SN = BoardList[j]->GetQLASerialNumber();
-        std::cout << "QLA S/N: " << QLA_SN << ". ";
-        std::string FPGA_SN = BoardList[j]->GetFPGASerialNumber();
-        std::cout << "FPGA S/N: " << FPGA_SN << ". ";
-        uint32_t FPGA_VER = BoardList[j]->GetFirmwareVersion();
-        std::cout << "FPGA Firmware Version: " << FPGA_VER << std::endl;
-    }
 
     bool pass = true;
 
     std::vector<Result (*)(AmpIO **, BasePort *)> test_functions;
+    test_functions.push_back(TestSerialNumberAndVersion);
     test_functions.push_back(TestEncoders);
     test_functions.push_back(TestAnalogInputs);
+    test_functions.push_back(TestDigitalInputs);
     test_functions.push_back(TestMotorPowerControl);
     test_functions.push_back(TestPowerAmplifier);
 
@@ -407,16 +416,16 @@ int main(int argc, char **argv) {
     }
 
     if (pass) {
-        std::cout << COLOR_GOOD << "PASS" << COLOR_OFF << std::endl;
+        std::cout << COLOR_GOOD << "PASS" << COLOR_OFF << ": all tests passed." <<std::endl;
     } else {
-        std::cout << COLOR_ERROR << "FAIL " << COLOR_OFF << std::endl;
+        std::cout << COLOR_ERROR << "FAIL" << COLOR_OFF << ": one or more tests failed." << std::endl;
     }
 
 
-    for (j = 0; j < BoardList.size(); j++) {
-        BoardList[j]->WritePowerEnable(false);
-        BoardList[j]->WriteSafetyRelay(false);
-        Port->RemoveBoard(BoardList[j]);
+    for (auto &j : BoardList) {
+        j->WritePowerEnable(false);
+        j->WriteSafetyRelay(false);
+        Port->RemoveBoard(j);
     }
 
     return pass ? 0 : -1;
